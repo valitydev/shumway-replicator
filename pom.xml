@@ -27,6 +27,8 @@
         <db.url>jdbc:postgresql://${db.host.name}:${db.host.port}/${db.name}</db.url>
         <db.user>postgres</db.user>
         <db.password>postgres</db.password>
+        <server.port>8080</server.port>
+        <exposed.ports>${server.port}</exposed.ports>
     </properties>
 
     <dependencies>
