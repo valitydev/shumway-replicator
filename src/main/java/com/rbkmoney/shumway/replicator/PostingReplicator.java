@@ -8,6 +8,7 @@ import com.rbkmoney.woody.api.flow.error.WUndefinedResultException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicLong;
@@ -21,6 +22,7 @@ public class PostingReplicator implements Runnable {
 
     private static final int BATCH_SIZE = 1500;
     private static final int STALING_TIME = 5000;
+    private static final long SEQ_CHECK_STALING = 1000 * 60 * 5;
     private final Logger log = LoggerFactory.getLogger(this.getClass());
     private final ShumwayDAO dao;
     private final AccounterSrv.Iface client;
@@ -212,8 +214,15 @@ public class PostingReplicator implements Runnable {
         long border = postingLogs.get(postingLogs.size() - 1).getId();
         long distance = border - lastPostingReplicatedId;
         if (distance != postingLogs.size()) {
-            log.warn("Gaps in posting sequence range: [{}, {}], distance: {}", border, lastPostingReplicatedId, distance);
-            return false;
+            log.warn("Gaps in posting sequence range: [{}, {}], distance: {}", lastPostingReplicatedId, border, distance);
+            Instant lastCreationTime = postingLogs.get(postingLogs.size() - 1).getCreationTime();
+            if (lastCreationTime.plusMillis(SEQ_CHECK_STALING).isBefore(Instant.now())) {
+                log.warn("Last time in log pack:{} is old enough, seq check staled [continue]", lastCreationTime);
+                return true;
+            } else {
+                log.warn("Last time in log pack: {} isn't old enough, seq check failed [await]", lastCreationTime);
+                return false;
+            }
         }
         return true;
     }
