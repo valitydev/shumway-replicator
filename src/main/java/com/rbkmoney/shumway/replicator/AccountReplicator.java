@@ -7,8 +7,12 @@ import com.rbkmoney.shumway.replicator.domain.Account;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
+
+import static com.rbkmoney.shumway.replicator.Replicator.SEQ_CHECK_STALING;
+import static com.rbkmoney.shumway.replicator.Replicator.executeCommand;
 
 /**
  * Created by vpankrashkin on 19.06.18.
@@ -32,7 +36,7 @@ public class AccountReplicator implements Runnable {
         log.info("Start account replicator from id: {}", lastReplicatedId.get());
         try {
             while (!Thread.currentThread().isInterrupted()) {
-                List<Account> accounts = dao.getAccounts(lastReplicatedId.get(), BATCH_SIZE);
+                List<Account> accounts = executeCommand(() -> dao.getAccounts(lastReplicatedId.get(), BATCH_SIZE), lastReplicatedId, STALING_TIME);
                 if (accounts.isEmpty()) {
                     log.info("Awaiting new accounts on: {}", lastReplicatedId.get());
                     Thread.sleep(STALING_TIME);
@@ -45,7 +49,7 @@ public class AccountReplicator implements Runnable {
                     log.info("Extracted {} new accounts [{}, {}]", accounts.size(), accounts.get(0).getId(), accounts.get(accounts.size() - 1).getId());
                     for (Account acc : accounts) {
                         log.debug("Saving account: {}", acc);
-                        lastReplicatedId.set(checkId(acc, client.createAccount(convertToProto(acc))));
+                        lastReplicatedId.set(checkId(acc, executeCommand(() -> client.createAccount(convertToProto(acc)), acc, STALING_TIME)));
                     }
                 }
             }
@@ -62,9 +66,17 @@ public class AccountReplicator implements Runnable {
     boolean validateAccountSequence(List<Account> accounts) {
         long border = accounts.get(accounts.size() - 1).getId();
         long distance = border - lastReplicatedId.get();
+
         if (distance != accounts.size()) {
             log.warn("Gaps in account sequence range: [{}, {}], distance: {}", border, lastReplicatedId.get(), distance);
-            return false;
+            Instant lastCreationTime = accounts.get(accounts.size() - 1).getCreationTime();
+            if (lastCreationTime.plusMillis(SEQ_CHECK_STALING).isBefore(Instant.now())) {
+                log.warn("Last time in account pack:{} is old enough, seq check staled [continue]", lastCreationTime);
+                return true;
+            } else {
+                log.warn("Last time in account pack: {} isn't old enough, seq check failed [await]", lastCreationTime);
+                return false;
+            }
         }
         return true;
     }

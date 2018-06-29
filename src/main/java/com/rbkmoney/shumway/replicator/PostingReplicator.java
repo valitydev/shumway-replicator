@@ -3,16 +3,14 @@ package com.rbkmoney.shumway.replicator;
 import com.rbkmoney.damsel.accounter.*;
 import com.rbkmoney.shumway.replicator.domain.PostingLog;
 import com.rbkmoney.shumway.replicator.domain.PostingOperation;
-import com.rbkmoney.woody.api.flow.error.WUnavailableResultException;
-import com.rbkmoney.woody.api.flow.error.WUndefinedResultException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.Instant;
 import java.util.*;
-import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static com.rbkmoney.shumway.replicator.Replicator.executeCommand;
 import static com.rbkmoney.shumway.replicator.domain.PostingOperation.HOLD;
 
 /**
@@ -22,7 +20,6 @@ public class PostingReplicator implements Runnable {
 
     private static final int BATCH_SIZE = 1500;
     private static final int STALING_TIME = 5000;
-    private static final long SEQ_CHECK_STALING = 1000 * 60 * 5;
     private final Logger log = LoggerFactory.getLogger(this.getClass());
     private final ShumwayDAO dao;
     private final AccounterSrv.Iface client;
@@ -94,7 +91,7 @@ public class PostingReplicator implements Runnable {
 
             while (!Thread.currentThread().isInterrupted()) {
                 log.info("Get postings from id: {}", lastPostingReplicatedId);
-                List<PostingLog> postingLogs = dao.getPostingLogs(lastPostingReplicatedId, BATCH_SIZE);
+                List<PostingLog> postingLogs = executeCommand(() -> dao.getPostingLogs(lastPostingReplicatedId, BATCH_SIZE), lastPostingReplicatedId, STALING_TIME);
                 if (postingLogs.isEmpty()) {
                     if (prevNoData && !lastPlanPoints.isEmpty()) {
                         flushToBounds(0);
@@ -216,7 +213,7 @@ public class PostingReplicator implements Runnable {
         if (distance != postingLogs.size()) {
             log.warn("Gaps in posting sequence range: [{}, {}], distance: {}", lastPostingReplicatedId, border, distance);
             Instant lastCreationTime = postingLogs.get(postingLogs.size() - 1).getCreationTime();
-            if (lastCreationTime.plusMillis(SEQ_CHECK_STALING).isBefore(Instant.now())) {
+            if (lastCreationTime.plusMillis(Replicator.SEQ_CHECK_STALING).isBefore(Instant.now())) {
                 log.warn("Last time in log pack:{} is old enough, seq check staled [continue]", lastCreationTime);
                 return true;
             } else {
@@ -230,34 +227,19 @@ public class PostingReplicator implements Runnable {
     void processHold(ReplicationPoint point) throws Exception {
         PostingPlanChange postingPlanChange = new PostingPlanChange(point.planId, new PostingBatch(point.lastBatchId, point.batches.get(0).getPostings()));
         log.info("Hold: {}", postingPlanChange);
-        executeCommand(() -> client.hold(postingPlanChange), postingPlanChange);
+        executeCommand(() -> client.hold(postingPlanChange), postingPlanChange, STALING_TIME);
     }
 
     void processCommit(ReplicationPoint point) throws Exception {
         PostingPlan postingPlan = new PostingPlan(point.planId, point.batches);
         log.info("Commit: {}", postingPlan);
-        executeCommand(() -> client.commitPlan(postingPlan), postingPlan);
+        executeCommand(() -> client.commitPlan(postingPlan), postingPlan, STALING_TIME);
     }
 
     void processRollback(ReplicationPoint point) throws Exception {
         PostingPlan postingPlan = new PostingPlan(point.planId, point.batches);
         log.info("Rollback: {}", postingPlan);
-        executeCommand(() -> client.rollbackPlan(postingPlan), postingPlan);
-    }
-
-    private PostingPlanLog executeCommand(Callable<PostingPlanLog> command, Object data) throws Exception {
-        while (true) {
-            try {
-                return command.call();
-            } catch (WUndefinedResultException | WUnavailableResultException e) {
-                log.warn("Temporary command error, retry", e);
-                Thread.sleep(STALING_TIME);
-                continue;
-            } catch (Exception e) {
-                log.error("Failed to execute command with data: {}", data);
-                throw e;
-            }
-        }
+        executeCommand(() -> client.rollbackPlan(postingPlan), postingPlan, STALING_TIME);
     }
 
     boolean isSameBatch(PostingLog postingLog, Long lastBatchId) {
