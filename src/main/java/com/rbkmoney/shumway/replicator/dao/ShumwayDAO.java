@@ -1,11 +1,11 @@
-package com.rbkmoney.shumway.replicator;
+package com.rbkmoney.shumway.replicator.dao;
 
 import com.rbkmoney.shumway.replicator.domain.Account;
 import com.rbkmoney.shumway.replicator.domain.PostingLog;
 import com.rbkmoney.shumway.replicator.domain.PostingOperation;
+import com.rbkmoney.shumway.replicator.exception.DAOException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.NestedRuntimeException;
-import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.support.JdbcDaoSupport;
 
@@ -30,6 +30,22 @@ public class ShumwayDAO extends JdbcDaoSupport  {
     @Autowired
     public ShumwayDAO(DataSource ds) {
         setDataSource(ds);
+    }
+
+    public Long totalAccountsCount() throws DAOException {
+        try {
+            return getJdbcTemplate().queryForObject("SELECT COUNT(*) FROM shm.account", Long.class);
+        } catch (NestedRuntimeException e) {
+            throw new DAOException(e);
+        }
+    }
+
+    public Long totalPostingsCount() throws DAOException {
+        try {
+            return getJdbcTemplate().queryForObject("SELECT COUNT(*) FROM shm.posting_log", Long.class);
+        } catch (NestedRuntimeException e) {
+            throw new DAOException(e);
+        }
     }
 
     public List<Account> getAccounts(long fromId, int limit) throws DAOException {

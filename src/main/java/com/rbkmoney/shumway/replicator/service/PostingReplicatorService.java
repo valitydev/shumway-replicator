@@ -1,6 +1,7 @@
-package com.rbkmoney.shumway.replicator;
+package com.rbkmoney.shumway.replicator.service;
 
 import com.rbkmoney.damsel.accounter.*;
+import com.rbkmoney.shumway.replicator.dao.ShumwayDAO;
 import com.rbkmoney.shumway.replicator.domain.PostingLog;
 import com.rbkmoney.shumway.replicator.domain.PostingOperation;
 import org.slf4j.Logger;
@@ -10,13 +11,13 @@ import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static com.rbkmoney.shumway.replicator.Replicator.executeCommand;
 import static com.rbkmoney.shumway.replicator.domain.PostingOperation.HOLD;
+import static com.rbkmoney.shumway.replicator.service.ReplicatorService.executeCommand;
 
 /**
  * Created by vpankrashkin on 19.06.18.
  */
-public class PostingReplicator implements Runnable {
+public class PostingReplicatorService implements Runnable {
 
     private static final int BATCH_SIZE = 1500;
     private static final int STALING_TIME = 5000;
@@ -24,7 +25,7 @@ public class PostingReplicator implements Runnable {
     private final ShumwayDAO dao;
     private final AccounterSrv.Iface client;
     private final AtomicLong lastAccountReplicatedId;
-    private long lastPostingReplicatedId;
+    private final AtomicLong lastPostingReplicatedId;
     private final int windowSize = 1000;
 
     Map<String, ReplicationPoint> lastPlanPoints = new HashMap<>();
@@ -56,7 +57,7 @@ public class PostingReplicator implements Runnable {
         }
     }
 
-    public PostingReplicator(ShumwayDAO dao, AccounterSrv.Iface client, AtomicLong lastAccountReplicatedId, long lastPostingReplicatedId) {
+    public PostingReplicatorService(ShumwayDAO dao, AccounterSrv.Iface client, AtomicLong lastAccountReplicatedId, AtomicLong lastPostingReplicatedId) {
         this.dao = dao;
         this.client = client;
         this.lastAccountReplicatedId = lastAccountReplicatedId;
@@ -91,7 +92,7 @@ public class PostingReplicator implements Runnable {
 
             while (!Thread.currentThread().isInterrupted()) {
                 log.info("Get postings from id: {}", lastPostingReplicatedId);
-                List<PostingLog> postingLogs = executeCommand(() -> dao.getPostingLogs(lastPostingReplicatedId, BATCH_SIZE), lastPostingReplicatedId, STALING_TIME);
+                List<PostingLog> postingLogs = executeCommand(() -> dao.getPostingLogs(lastPostingReplicatedId.get(), BATCH_SIZE), lastPostingReplicatedId, STALING_TIME);
                 if (postingLogs.isEmpty()) {
                     if (prevNoData && !lastPlanPoints.isEmpty()) {
                         flushToBounds(0);
@@ -141,7 +142,7 @@ public class PostingReplicator implements Runnable {
                         prevNoData = false;
                         lastPlanPoint.postings.add(convertToProto(postingLog));
                         lastPlanPoint.lastBatchId = postingLog.getBatchId();
-                        lastPostingReplicatedId = postingLog.getId();
+                        lastPostingReplicatedId.set(postingLog.getId());
                     }
                     int flushed = flushToBounds(windowSize);
                     if (flushed > 0) {
@@ -209,11 +210,11 @@ public class PostingReplicator implements Runnable {
 
     boolean validatePostingSequence(List<PostingLog> postingLogs) {
         long border = postingLogs.get(postingLogs.size() - 1).getId();
-        long distance = border - lastPostingReplicatedId;
+        long distance = border - lastPostingReplicatedId.get();
         if (distance != postingLogs.size()) {
             log.warn("Gaps in posting sequence range: [{}, {}], distance: {}", lastPostingReplicatedId, border, distance);
             Instant lastCreationTime = postingLogs.get(postingLogs.size() - 1).getCreationTime();
-            if (lastCreationTime.plusMillis(Replicator.SEQ_CHECK_STALING).isBefore(Instant.now())) {
+            if (lastCreationTime.plusMillis(ReplicatorService.SEQ_CHECK_STALING).isBefore(Instant.now())) {
                 log.warn("Last time in log pack:{} is old enough, seq check staled [continue]", lastCreationTime);
                 return true;
             } else {

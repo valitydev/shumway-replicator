@@ -1,6 +1,8 @@
-package com.rbkmoney.shumway.replicator;
+package com.rbkmoney.shumway.replicator.config;
 
 import com.rbkmoney.damsel.accounter.AccounterSrv;
+import com.rbkmoney.shumway.replicator.service.ReplicatorService;
+import com.rbkmoney.shumway.replicator.dao.ShumwayDAO;
 import com.rbkmoney.woody.thrift.impl.http.THSpawnClientBuilder;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -27,7 +29,7 @@ public class Config {
     }
 
     @Bean
-    public Replicator replicator(ShumwayDAO dao, AccounterSrv.Iface client) {
-        return new Replicator(dao, client);
+    public ReplicatorService replicator(ShumwayDAO dao, AccounterSrv.Iface client) {
+        return new ReplicatorService(dao, client);
     }
 }

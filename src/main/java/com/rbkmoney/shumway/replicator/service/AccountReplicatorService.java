@@ -1,8 +1,9 @@
-package com.rbkmoney.shumway.replicator;
+package com.rbkmoney.shumway.replicator.service;
 
 import com.rbkmoney.damsel.accounter.AccountPrototype;
 import com.rbkmoney.damsel.accounter.AccounterSrv;
 import com.rbkmoney.geck.common.util.TypeUtil;
+import com.rbkmoney.shumway.replicator.dao.ShumwayDAO;
 import com.rbkmoney.shumway.replicator.domain.Account;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -11,13 +12,13 @@ import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static com.rbkmoney.shumway.replicator.Replicator.SEQ_CHECK_STALING;
-import static com.rbkmoney.shumway.replicator.Replicator.executeCommand;
+import static com.rbkmoney.shumway.replicator.service.ReplicatorService.SEQ_CHECK_STALING;
+import static com.rbkmoney.shumway.replicator.service.ReplicatorService.executeCommand;
 
 /**
  * Created by vpankrashkin on 19.06.18.
  */
-public class AccountReplicator implements Runnable {
+public class AccountReplicatorService implements Runnable {
     private static final int BATCH_SIZE = 1000;
     private static final int STALING_TIME = 3000;
     private final Logger log = LoggerFactory.getLogger(this.getClass());
@@ -25,7 +26,7 @@ public class AccountReplicator implements Runnable {
     private final AccounterSrv.Iface client;
     private final AtomicLong lastReplicatedId;
 
-    public AccountReplicator(ShumwayDAO dao, AccounterSrv.Iface client, AtomicLong lastReplicatedId) {
+    public AccountReplicatorService(ShumwayDAO dao, AccounterSrv.Iface client, AtomicLong lastReplicatedId) {
         this.dao = dao;
         this.client = client;
         this.lastReplicatedId = lastReplicatedId;

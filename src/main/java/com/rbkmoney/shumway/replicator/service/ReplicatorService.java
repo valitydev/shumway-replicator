@@ -1,13 +1,15 @@
-package com.rbkmoney.shumway.replicator;
+package com.rbkmoney.shumway.replicator.service;
 
-import com.rbkmoney.damsel.accounter.*;
+import com.rbkmoney.damsel.accounter.AccounterSrv;
+import com.rbkmoney.shumway.replicator.dao.ShumwayDAO;
+import com.rbkmoney.shumway.replicator.domain.replication.Status;
+import com.rbkmoney.shumway.replicator.domain.replication.StatusCheckResult;
 import com.rbkmoney.woody.api.flow.error.WUnavailableResultException;
 import com.rbkmoney.woody.api.flow.error.WUndefinedResultException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 
-import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicLong;
@@ -15,30 +17,36 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * Created by vpankrashkin on 11.05.18.
  */
-public class Replicator {
-    private static final Logger log = LoggerFactory.getLogger(Replicator.class);
+public class ReplicatorService {
+    private static final Logger log = LoggerFactory.getLogger(ReplicatorService.class);
     static final long SEQ_CHECK_STALING = 1000 * 60 * 5;
 
+    private ShumwayDAO shumwayDao;
+
     private final AtomicLong lastReplicatedAccount = new AtomicLong(0);
+    private final AtomicLong lastReplicatedPosting = new AtomicLong(0);
+    private Status status = Status.NOT_STARTED;
     private final Thread accountReplicator;
     private final Thread postingReplicator;
 
     @Autowired
-    public Replicator(ShumwayDAO dao, AccounterSrv.Iface client) {
-        this.accountReplicator = new Thread(new AccountReplicator(dao, client, lastReplicatedAccount), "AccountReplicator");
-        this.postingReplicator = new Thread(new PostingReplicator(dao, client, lastReplicatedAccount, 0), "PostingReplicator");
+    public ReplicatorService(ShumwayDAO dao, AccounterSrv.Iface client) {
+        this.shumwayDao = dao;
+        this.accountReplicator = new Thread(new AccountReplicatorService(dao, client, lastReplicatedAccount), "AccountReplicatorService");
+        this.postingReplicator = new Thread(new PostingReplicatorService(dao, client, lastReplicatedAccount, lastReplicatedPosting), "PostingReplicatorService");
     }
 
-    @PostConstruct
     public void fire() {
         new Thread(() -> {
             log.info("Start replicator");
             try {
+                status = Status.IN_PROGRESS;
                 accountReplicator.start();
                 postingReplicator.start();
             } catch (Throwable t) {
-                log.error("Replicator error", t);
-                throw new RuntimeException("Replicator error", t);
+                status = Status.ERROR;
+                log.error("ReplicatorService error", t);
+                throw new RuntimeException("ReplicatorService error", t);
             } finally {
                 log.info("Destroy replicator");
             }
@@ -58,13 +66,20 @@ public class Replicator {
             } catch (WUndefinedResultException | WUnavailableResultException e) {
                 log.warn("Temporary command error, retry", e);
                 Thread.sleep(stalingTime);
-                continue;
             } catch (Exception e) {
                 log.error("Failed to execute command with data: {}, retry", data);
                 Thread.sleep(stalingTime);
-                continue;
             }
         }
     }
 
+    public StatusCheckResult status() {
+        return StatusCheckResult.builder()
+                .status(status)
+                .accountNumber(lastReplicatedAccount.get())
+                .postingPlanNumber(lastReplicatedPosting.get())
+                .totalAccountAmount(shumwayDao.totalAccountsCount())
+                .totalPostingPlanAmount(shumwayDao.totalPostingsCount())
+                .build();
+    }
 }
