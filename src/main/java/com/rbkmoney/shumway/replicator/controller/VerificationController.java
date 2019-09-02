@@ -1,6 +1,5 @@
 package com.rbkmoney.shumway.replicator.controller;
 
-import com.rbkmoney.shumway.replicator.domain.replication.StatusCheckResult;
 import com.rbkmoney.shumway.replicator.domain.verification.AccountCheckResult;
 import com.rbkmoney.shumway.replicator.service.VerificationService;
 import lombok.RequiredArgsConstructor;
