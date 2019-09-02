@@ -19,7 +19,12 @@ import java.net.URISyntaxException;
 public class Config {
 
     @Bean
-    public AccounterSrv.Iface shumwayClient(@Value("${shm.target.uri}") String uri) throws URISyntaxException {
+    public com.rbkmoney.damsel.shumpune.AccounterSrv.Iface shumpuneClient(@Value("${shumpune.target.uri}") String uri) throws URISyntaxException {
+        return new THSpawnClientBuilder().withAddress(new URI(uri)).withNetworkTimeout(5000).build(com.rbkmoney.damsel.shumpune.AccounterSrv.Iface.class);
+    }
+
+    @Bean
+    public AccounterSrv.Iface shumwayClient(@Value("${shumway.target.uri}") String uri) throws URISyntaxException {
         return new THSpawnClientBuilder().withAddress(new URI(uri)).withNetworkTimeout(5000).build(AccounterSrv.Iface.class);
     }
 
@@ -29,7 +34,8 @@ public class Config {
     }
 
     @Bean
-    public ReplicatorService replicator(ShumwayDAO dao, AccounterSrv.Iface client) {
-        return new ReplicatorService(dao, client);
+    public ReplicatorService replicator(ShumwayDAO dao, AccounterSrv.Iface shumpuneClient) {
+        return new ReplicatorService(dao, shumpuneClient);
     }
+
 }
