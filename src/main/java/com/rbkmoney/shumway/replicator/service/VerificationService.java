@@ -38,7 +38,7 @@ public class VerificationService {
             status = Status.IN_PROGRESS;
             totalAccountsCount = shumwayDAO.totalAccountsCount();
             LongStream.range(0, totalAccountsCount)
-                    .parallel()
+//                    .parallel()
                     .forEach(i -> {
                         try {
                             currentAcc.set(i);
@@ -47,7 +47,10 @@ public class VerificationService {
                             if (!(balance.getOwnAmount() == account.getOwnAmount()
                                     && balance.getMinAvailableAmount() == account.getMinAvailableAmount()
                                     && balance.getMaxAvailableAmount() == account.getMaxAvailableAmount())) {
+                                log.warn("Invalid account number: {}", i);
                                 invalidAccounts.add(i);
+                            } else {
+                                log.info("Account valid: {}", i);
                             }
                         } catch (AccountNotFound ex) {
                             log.error("Account not found", i);
