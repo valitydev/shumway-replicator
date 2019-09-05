@@ -34,8 +34,8 @@ public class Config {
     }
 
     @Bean
-    public ReplicatorService replicator(ShumwayDAO dao, AccounterSrv.Iface shumpuneClient) {
-        return new ReplicatorService(dao, (com.rbkmoney.damsel.shumpune.AccounterSrv.Iface) shumpuneClient);
+    public ReplicatorService replicator(ShumwayDAO dao, com.rbkmoney.damsel.shumpune.AccounterSrv.Iface shumpuneClient) {
+        return new ReplicatorService(dao, shumpuneClient);
     }
 
 }
