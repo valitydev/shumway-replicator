@@ -32,7 +32,6 @@ public class ReplicatorService {
 
     private Status status = Status.NOT_STARTED;
 
-    @Autowired
     public ReplicatorService(ShumwayDAO dao, AccounterSrv.Iface shumpuneClient) {
         this.shumwayDao = dao;
         this.accountReplicator = new Thread(new AccountReplicatorService(dao, shumpuneClient, lastReplicatedAccount), "AccountReplicatorService");
