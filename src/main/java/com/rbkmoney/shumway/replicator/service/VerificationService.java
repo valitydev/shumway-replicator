@@ -47,7 +47,14 @@ public class VerificationService {
                             if (!(balance.getOwnAmount() == account.getOwnAmount()
                                     && balance.getMinAvailableAmount() == account.getMinAvailableAmount()
                                     && balance.getMaxAvailableAmount() == account.getMaxAvailableAmount())) {
-                                log.warn("Invalid account number: {}", i);
+                                log.warn("Invalid account number: {}\n" +
+                                        "shumpune own -  {} / min - {} / max - {}\n" +
+                                        "shumway own - {} / min - {} / max - {}.", i, balance.getOwnAmount(),
+                                        balance.getMinAvailableAmount(),
+                                        balance.getMaxAvailableAmount(),
+                                        account.getOwnAmount(),
+                                        account.getMinAvailableAmount(),
+                                        account.getMaxAvailableAmount());
                                 invalidAccounts.add(i);
                             } else {
                                 log.info("Account valid: {}", i);
@@ -59,7 +66,7 @@ public class VerificationService {
                     });
             if (invalidAccounts.size() > 0) {
                 status = Status.ERROR;
-                log.error("Invalid accounts found: ", invalidAccounts);
+                log.error("Invalid accounts found: " + invalidAccounts);
             } else {
                 status = Status.FINISHED;
             }
