@@ -52,12 +52,9 @@ public class VerificationService {
                             } else {
                                 log.info("Account valid: {}", i);
                             }
-                        } catch (AccountNotFound ex) {
-                            log.error("Account not found", i);
-
                         } catch (Throwable t) {
                             log.error("Verification error, accNum: {}", i, t);
-                            throw new RuntimeException("Verification error", t);
+//                            throw new RuntimeException("Verification error", t);
                         }
                     });
             if (invalidAccounts.size() > 0) {
