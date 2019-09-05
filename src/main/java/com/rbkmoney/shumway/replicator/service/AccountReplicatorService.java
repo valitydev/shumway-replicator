@@ -1,7 +1,8 @@
 package com.rbkmoney.shumway.replicator.service;
 
-import com.rbkmoney.damsel.accounter.AccountPrototype;
-import com.rbkmoney.damsel.accounter.AccounterSrv;
+
+import com.rbkmoney.damsel.shumpune.AccountPrototype;
+import com.rbkmoney.damsel.shumpune.AccounterSrv;
 import com.rbkmoney.geck.common.util.TypeUtil;
 import com.rbkmoney.shumway.replicator.dao.ShumwayDAO;
 import com.rbkmoney.shumway.replicator.domain.Account;

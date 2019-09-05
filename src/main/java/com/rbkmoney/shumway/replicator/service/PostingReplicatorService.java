@@ -1,6 +1,6 @@
 package com.rbkmoney.shumway.replicator.service;
 
-import com.rbkmoney.damsel.accounter.*;
+import com.rbkmoney.damsel.shumpune.*;
 import com.rbkmoney.shumway.replicator.dao.ShumwayDAO;
 import com.rbkmoney.shumway.replicator.domain.PostingLog;
 import com.rbkmoney.shumway.replicator.domain.PostingOperation;
