@@ -44,9 +44,8 @@ public class VerificationService {
                             currentAcc.set(i);
                             Balance balance = shumpuneClient.getBalanceByID(i, Clock.latest(new LatestClock()));
                             Account account = shumwayClient.getAccountByID(i);
-                            if (!(balance.getOwnAmount() == account.getOwnAmount()
-                                    && balance.getMinAvailableAmount() == account.getMinAvailableAmount()
-                                    && balance.getMaxAvailableAmount() == account.getMaxAvailableAmount())) {
+                            if (!((balance.getOwnAmount() - balance.getMinAvailableAmount()) + (balance.getOwnAmount() - balance.getMaxAvailableAmount())
+                                    == (account.getOwnAmount() - account.getMinAvailableAmount()) + (account.getOwnAmount() - account.getMaxAvailableAmount()))) {
                                 log.warn("Invalid account number: {}\n" +
                                         "shumpune own -  {} / min - {} / max - {}\n" +
                                         "shumway own - {} / min - {} / max - {}.", i, balance.getOwnAmount(),
