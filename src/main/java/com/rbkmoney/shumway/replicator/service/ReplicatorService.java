@@ -2,6 +2,7 @@ package com.rbkmoney.shumway.replicator.service;
 
 
 import com.rbkmoney.damsel.shumpune.AccounterSrv;
+import com.rbkmoney.damsel.shumpune.MigrationHelperSrv;
 import com.rbkmoney.shumway.replicator.dao.ShumwayDAO;
 import com.rbkmoney.shumway.replicator.domain.replication.Status;
 import com.rbkmoney.shumway.replicator.domain.replication.StatusCheckResult;
@@ -11,6 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
 
 import javax.annotation.PreDestroy;
 import java.util.concurrent.Callable;
@@ -20,10 +22,11 @@ import java.util.concurrent.atomic.AtomicLong;
  * Created by vpankrashkin on 11.05.18.
  */
 @Slf4j
+@Component
 public class ReplicatorService {
     static final long SEQ_CHECK_STALING = 1000 * 60 * 5;
 
-    private ShumwayDAO shumwayDao;
+    private final ShumwayDAO shumwayDao;
 
     private final AtomicLong lastReplicatedAccount = new AtomicLong(0);
     private final AtomicLong lastReplicatedPosting = new AtomicLong(0);
@@ -32,9 +35,10 @@ public class ReplicatorService {
 
     private Status status = Status.NOT_STARTED;
 
-    public ReplicatorService(ShumwayDAO dao, AccounterSrv.Iface shumpuneClient) {
+    @Autowired
+    public ReplicatorService(ShumwayDAO dao, AccounterSrv.Iface shumpuneClient, MigrationHelperSrv.Iface shumpuneMigrationClient) {
         this.shumwayDao = dao;
-        this.accountReplicator = new Thread(new AccountReplicatorService(dao, shumpuneClient, lastReplicatedAccount), "AccountReplicatorService");
+        this.accountReplicator = new Thread(new AccountReplicatorService(dao, shumpuneMigrationClient, lastReplicatedAccount), "AccountReplicatorService");
         this.postingReplicator = new Thread(new PostingReplicatorService(dao, shumpuneClient, lastReplicatedAccount, lastReplicatedPosting), "PostingReplicatorService");
     }
 

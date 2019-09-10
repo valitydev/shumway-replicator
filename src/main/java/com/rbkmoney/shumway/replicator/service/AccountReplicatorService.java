@@ -3,15 +3,21 @@ package com.rbkmoney.shumway.replicator.service;
 
 import com.rbkmoney.damsel.shumpune.AccountPrototype;
 import com.rbkmoney.damsel.shumpune.AccounterSrv;
+import com.rbkmoney.damsel.shumpune.MigrationHelperSrv;
 import com.rbkmoney.geck.common.util.TypeUtil;
 import com.rbkmoney.shumway.replicator.dao.ShumwayDAO;
 import com.rbkmoney.shumway.replicator.domain.Account;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.thrift.TException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.retry.annotation.Retryable;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 
 import static com.rbkmoney.shumway.replicator.service.ReplicatorService.SEQ_CHECK_STALING;
 import static com.rbkmoney.shumway.replicator.service.ReplicatorService.executeCommand;
@@ -19,19 +25,15 @@ import static com.rbkmoney.shumway.replicator.service.ReplicatorService.executeC
 /**
  * Created by vpankrashkin on 19.06.18.
  */
+@Slf4j
+@RequiredArgsConstructor
 public class AccountReplicatorService implements Runnable {
     private static final int BATCH_SIZE = 1000;
-    private static final int STALING_TIME = 3000;
-    private final Logger log = LoggerFactory.getLogger(this.getClass());
-    private final ShumwayDAO dao;
-    private final AccounterSrv.Iface client;
-    private final AtomicLong lastReplicatedId;
+    private static final int STALING_TIME = 500;
 
-    public AccountReplicatorService(ShumwayDAO dao, AccounterSrv.Iface client, AtomicLong lastReplicatedId) {
-        this.dao = dao;
-        this.client = client;
-        this.lastReplicatedId = lastReplicatedId;
-    }
+    private final ShumwayDAO dao;
+    private final MigrationHelperSrv.Iface client;
+    private final AtomicLong lastReplicatedId;
 
     @Override
     public void run() {
@@ -49,10 +51,7 @@ public class AccountReplicatorService implements Runnable {
                         continue;
                     }
                     log.info("Extracted {} new accounts [{}, {}]", accounts.size(), accounts.get(0).getId(), accounts.get(accounts.size() - 1).getId());
-                    for (Account acc : accounts) {
-                        log.debug("Saving account: {}", acc);
-                        lastReplicatedId.set(checkId(acc, executeCommand(() -> client.createAccount(convertToProto(acc)), acc, STALING_TIME)));
-                    }
+                    requestWithRetry(accounts);
                 }
             }
         } catch (InterruptedException e) {
@@ -83,18 +82,21 @@ public class AccountReplicatorService implements Runnable {
         return true;
     }
 
-    private long checkId(Account acc, long newId) {
-        if (newId != acc.getId()) {
-            log.error("Replicated account id: {} and source account id: {} doesn't match, this is unrecoverable error");
-            throw new IllegalStateException("Account id coherence broken");
+    @Retryable
+    public void requestWithRetry(List<Account> accounts) throws TException {
+        try {
+            client.migrateAccounts(accounts.stream().map(this::convertToThrift).collect(Collectors.toList()));
+        } catch (Throwable e) {
+            log.error("Error in migration accounts", e);
+            throw e;
         }
-        return newId;
     }
 
-    AccountPrototype convertToProto(Account acc) {
-        AccountPrototype proto = new AccountPrototype(acc.getCurrSymCode());
-        proto.setDescription(acc.getDescription());
-        proto.setCreationTime(TypeUtil.temporalToString(acc.getCreationTime()));
-        return proto;
+    com.rbkmoney.damsel.shumpune.Account convertToThrift(Account acc) {
+        return new com.rbkmoney.damsel.shumpune.Account()
+                .setId(acc.getId())
+                .setCreationTime(TypeUtil.temporalToString(acc.getCreationTime()))
+                .setDescription(acc.getDescription())
+                .setCurrencySymCode(acc.getCurrSymCode());
     }
 }

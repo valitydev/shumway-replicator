@@ -1,6 +1,7 @@
 package com.rbkmoney.shumway.replicator.config;
 
 import com.rbkmoney.damsel.accounter.AccounterSrv;
+import com.rbkmoney.damsel.shumpune.MigrationHelperSrv;
 import com.rbkmoney.shumway.replicator.service.ReplicatorService;
 import com.rbkmoney.shumway.replicator.dao.ShumwayDAO;
 import com.rbkmoney.woody.thrift.impl.http.THSpawnClientBuilder;
@@ -24,18 +25,13 @@ public class Config {
     }
 
     @Bean
+    public MigrationHelperSrv.Iface shumpuneMigrationClient(@Value("${shumpune.target.uri}") String uri) throws URISyntaxException {
+        return new THSpawnClientBuilder().withAddress(new URI(uri)).withNetworkTimeout(5000).build(MigrationHelperSrv.Iface.class);
+    }
+
+    @Bean
     public AccounterSrv.Iface shumwayClient(@Value("${shumway.target.uri}") String uri) throws URISyntaxException {
         return new THSpawnClientBuilder().withAddress(new URI(uri)).withNetworkTimeout(5000).build(AccounterSrv.Iface.class);
-    }
-
-    @Bean
-    public ShumwayDAO dao(DataSource ds) {
-        return new ShumwayDAO(ds);
-    }
-
-    @Bean
-    public ReplicatorService replicator(ShumwayDAO dao, com.rbkmoney.damsel.shumpune.AccounterSrv.Iface shumpuneClient) {
-        return new ReplicatorService(dao, shumpuneClient);
     }
 
 }
