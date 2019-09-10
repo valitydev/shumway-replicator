@@ -52,6 +52,7 @@ public class AccountReplicatorService implements Runnable {
                     }
                     log.info("Extracted {} new accounts [{}, {}]", accounts.size(), accounts.get(0).getId(), accounts.get(accounts.size() - 1).getId());
                     requestWithRetry(accounts);
+                    lastReplicatedId.set(accounts.get(accounts.size() - 1).getId());
                 }
             }
         } catch (InterruptedException e) {
