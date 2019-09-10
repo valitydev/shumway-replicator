@@ -25,7 +25,7 @@ public class Config {
     }
 
     @Bean
-    public MigrationHelperSrv.Iface shumpuneMigrationClient(@Value("${shumpune.target.uri}") String uri) throws URISyntaxException {
+    public MigrationHelperSrv.Iface shumpuneMigrationClient(@Value("${migration.target.uri}") String uri) throws URISyntaxException {
         return new THSpawnClientBuilder().withAddress(new URI(uri)).withNetworkTimeout(5000).build(MigrationHelperSrv.Iface.class);
     }
 
