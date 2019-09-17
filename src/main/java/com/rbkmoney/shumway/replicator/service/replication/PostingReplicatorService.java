@@ -1,6 +1,8 @@
 package com.rbkmoney.shumway.replicator.service.replication;
 
-import com.rbkmoney.damsel.shumpune.*;
+import com.rbkmoney.damsel.shumpune.MigrationHelperSrv;
+import com.rbkmoney.damsel.shumpune.MigrationPostingPlan;
+import com.rbkmoney.damsel.shumpune.Operation;
 import com.rbkmoney.shumway.replicator.dao.ShumwayDAO;
 import com.rbkmoney.shumway.replicator.domain.PostingLog;
 import com.rbkmoney.shumway.replicator.domain.PostingOperation;
@@ -10,7 +12,7 @@ import org.apache.thrift.TException;
 import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
 
-import java.util.*;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
@@ -40,7 +42,7 @@ public class PostingReplicatorService implements Runnable {
                 List<PostingLog> postingLogs = dao.getPostingLogs(lastReplicatedPosting.get(), BATCH_SIZE);
                 if (postingLogs.isEmpty()) {
                     log.info("Awaiting new postings on: {}", lastReplicatedPosting);
-                    Thread.sleep(STALING_TIME);
+                    Thread.sleep(STALING_TIME * 20);
 
                 } else {
                     if (!validateAccountCoherence(postingLogs)) {
@@ -53,6 +55,8 @@ public class PostingReplicatorService implements Runnable {
                             .map(this::convertToProto)
                             .collect(Collectors.toList());
                     migratePostingPlansWithRetry(migrationPostingPlans);
+
+                    lastReplicatedPosting.addAndGet(postingLogs.get(postingLogs.size() - 1).getId());
                 }
             }
         } catch (InterruptedException e) {

@@ -41,7 +41,7 @@ public class AccountReplicatorService implements Runnable {
                 List<Account> accounts = executeCommand(() -> dao.getAccounts(lastReplicatedAccount.get(), BATCH_SIZE), lastReplicatedAccount, STALING_TIME);
                 if (accounts.isEmpty()) {
                     log.info("Awaiting new accounts on: {}", lastReplicatedAccount.get());
-                    Thread.sleep(STALING_TIME);
+                    Thread.sleep(STALING_TIME * 20);
                 } else {
                     if (!validateAccountSequence(accounts)) {
                         log.warn("Sequence not validated, awaiting for continuous range on: {}", lastReplicatedAccount.get());
