@@ -20,12 +20,6 @@
         <dockerfile.base.service.tag>22c57470c4fc47161894f036b7cf9d70f42b75f5</dockerfile.base.service.tag>
         <shared.resources.version>0.3.1</shared.resources.version>
 
-        <db.host.name>localhost</db.host.name>
-        <db.host.port>5432</db.host.port>
-        <db.name>shumway</db.name>
-        <db.url>jdbc:postgresql://${db.host.name}:${db.host.port}/${db.name}</db.url>
-        <db.user>postgres</db.user>
-        <db.password>postgres</db.password>
         <server.port>8080</server.port>
         <exposed.ports>${server.port}</exposed.ports>
     </properties>
@@ -67,7 +61,7 @@
         <dependency>
             <groupId>com.rbkmoney</groupId>
             <artifactId>shumpune-proto</artifactId>
-            <version>1.10-bc7ef63</version>
+            <version>1.15-4c87f03</version>
         </dependency>
         <dependency>
             <groupId>com.rbkmoney.geck</groupId>
@@ -112,6 +106,11 @@
         </dependency>
 
         <!--Test libs-->
+        <dependency>
+            <groupId>com.rbkmoney</groupId>
+            <artifactId>easyway</artifactId>
+            <version>0.2.0</version>
+        </dependency>
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>

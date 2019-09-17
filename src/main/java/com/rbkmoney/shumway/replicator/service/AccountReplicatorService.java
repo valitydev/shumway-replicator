@@ -1,8 +1,6 @@
 package com.rbkmoney.shumway.replicator.service;
 
 
-import com.rbkmoney.damsel.shumpune.AccountPrototype;
-import com.rbkmoney.damsel.shumpune.AccounterSrv;
 import com.rbkmoney.damsel.shumpune.MigrationHelperSrv;
 import com.rbkmoney.geck.common.util.TypeUtil;
 import com.rbkmoney.shumway.replicator.dao.ShumwayDAO;
@@ -10,9 +8,8 @@ import com.rbkmoney.shumway.replicator.domain.Account;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.thrift.TException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.retry.annotation.Retryable;
+import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.util.List;
@@ -27,32 +24,33 @@ import static com.rbkmoney.shumway.replicator.service.ReplicatorService.executeC
  */
 @Slf4j
 @RequiredArgsConstructor
+@Service
 public class AccountReplicatorService implements Runnable {
     private static final int BATCH_SIZE = 1000;
     private static final int STALING_TIME = 500;
 
     private final ShumwayDAO dao;
     private final MigrationHelperSrv.Iface client;
-    private final AtomicLong lastReplicatedId;
+    private final AtomicLong lastReplicatedAccount;
 
     @Override
     public void run() {
-        log.info("Start account replicator from id: {}", lastReplicatedId.get());
+        log.info("Start account replicator from id: {}", lastReplicatedAccount.get());
         try {
             while (!Thread.currentThread().isInterrupted()) {
-                List<Account> accounts = executeCommand(() -> dao.getAccounts(lastReplicatedId.get(), BATCH_SIZE), lastReplicatedId, STALING_TIME);
+                List<Account> accounts = executeCommand(() -> dao.getAccounts(lastReplicatedAccount.get(), BATCH_SIZE), lastReplicatedAccount, STALING_TIME);
                 if (accounts.isEmpty()) {
-                    log.info("Awaiting new accounts on: {}", lastReplicatedId.get());
+                    log.info("Awaiting new accounts on: {}", lastReplicatedAccount.get());
                     Thread.sleep(STALING_TIME);
                 } else {
                     if (!validateAccountSequence(accounts)) {
-                        log.warn("Sequence not validated, awaiting for continuous range on: {}", lastReplicatedId.get());
+                        log.warn("Sequence not validated, awaiting for continuous range on: {}", lastReplicatedAccount.get());
                         Thread.sleep(STALING_TIME);
                         continue;
                     }
                     log.info("Extracted {} new accounts [{}, {}]", accounts.size(), accounts.get(0).getId(), accounts.get(accounts.size() - 1).getId());
-                    requestWithRetry(accounts);
-                    lastReplicatedId.set(accounts.get(accounts.size() - 1).getId());
+                    migrateAccountsWithRetry(accounts);
+                    lastReplicatedAccount.set(accounts.get(accounts.size() - 1).getId());
                 }
             }
         } catch (InterruptedException e) {
@@ -61,16 +59,16 @@ public class AccountReplicatorService implements Runnable {
             log.error("Account replicator error", t);
             throw new RuntimeException("Account replicator error", t);
         } finally {
-            log.info("Stop account replicator on: {}", lastReplicatedId.get());
+            log.info("Stop account replicator on: {}", lastReplicatedAccount.get());
         }
     }
 
     boolean validateAccountSequence(List<Account> accounts) {
         long border = accounts.get(accounts.size() - 1).getId();
-        long distance = border - lastReplicatedId.get();
+        long distance = border - lastReplicatedAccount.get();
 
         if (distance != accounts.size()) {
-            log.warn("Gaps in account sequence range: [{}, {}], distance: {}", border, lastReplicatedId.get(), distance);
+            log.warn("Gaps in account sequence range: [{}, {}], distance: {}", border, lastReplicatedAccount.get(), distance);
             Instant lastCreationTime = accounts.get(accounts.size() - 1).getCreationTime();
             if (lastCreationTime.plusMillis(SEQ_CHECK_STALING).isBefore(Instant.now())) {
                 log.warn("Last time in account pack:{} is old enough, seq check staled [continue]", lastCreationTime);
@@ -83,8 +81,8 @@ public class AccountReplicatorService implements Runnable {
         return true;
     }
 
-    @Retryable
-    public void requestWithRetry(List<Account> accounts) throws TException {
+    @Retryable(maxAttempts = 50)
+    public void migrateAccountsWithRetry(List<Account> accounts) throws TException {
         try {
             client.migrateAccounts(accounts.stream().map(this::convertToThrift).collect(Collectors.toList()));
         } catch (Throwable e) {

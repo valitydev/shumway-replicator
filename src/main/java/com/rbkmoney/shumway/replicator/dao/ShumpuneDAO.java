@@ -17,7 +17,7 @@ import java.util.List;
  * Created by vpankrashkin on 11.05.18.
  */
 @Component
-public class ShumwayDAO extends JdbcDaoSupport  {
+public class ShumpuneDAO extends JdbcDaoSupport  {
     private static final String sqlAcc = "SELECT id, curr_sym_code, creation_time, description FROM shm.account WHERE id > ? order by id limit ?";
     private static final String sqlPst = "select id, plan_id, batch_id, from_account_id, to_account_id, creation_time, amount, curr_sym_code, operation, description from shm.posting_log where id > ? order by id limit ?";
 
@@ -25,8 +25,8 @@ public class ShumwayDAO extends JdbcDaoSupport  {
     private final PostingLogMapper postingLogMapper = new PostingLogMapper();
 
     @Autowired
-    public ShumwayDAO(DataSource shumwayDS) {
-        setDataSource(shumwayDS);
+    public ShumpuneDAO(DataSource shumpuneDS) {
+        setDataSource(shumpuneDS);
     }
 
     public Long totalAccountsCount() throws DAOException {
@@ -60,5 +60,4 @@ public class ShumwayDAO extends JdbcDaoSupport  {
             throw new DAOException(e);
         }
     }
-
 }
