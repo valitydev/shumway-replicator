@@ -1,4 +1,4 @@
-package com.rbkmoney.shumway.replicator.service;
+package com.rbkmoney.shumway.replicator.service.replication;
 
 
 import com.rbkmoney.damsel.shumpune.MigrationHelperSrv;
@@ -16,8 +16,8 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
-import static com.rbkmoney.shumway.replicator.service.ReplicatorService.SEQ_CHECK_STALING;
-import static com.rbkmoney.shumway.replicator.service.ReplicatorService.executeCommand;
+import static com.rbkmoney.shumway.replicator.service.replication.ReplicatorService.SEQ_CHECK_STALING;
+import static com.rbkmoney.shumway.replicator.service.replication.ReplicatorService.executeCommand;
 
 /**
  * Created by vpankrashkin on 19.06.18.

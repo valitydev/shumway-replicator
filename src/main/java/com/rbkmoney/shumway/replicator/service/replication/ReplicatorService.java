@@ -1,9 +1,6 @@
-package com.rbkmoney.shumway.replicator.service;
+package com.rbkmoney.shumway.replicator.service.replication;
 
 
-import com.rbkmoney.damsel.shumpune.AccounterSrv;
-import com.rbkmoney.damsel.shumpune.MigrationHelperSrv;
-import com.rbkmoney.shumway.replicator.dao.ShumpuneDAO;
 import com.rbkmoney.shumway.replicator.dao.ShumwayDAO;
 import com.rbkmoney.shumway.replicator.domain.replication.Status;
 import com.rbkmoney.shumway.replicator.domain.replication.StatusCheckResult;
@@ -11,7 +8,6 @@ import com.rbkmoney.woody.api.flow.error.WUnavailableResultException;
 import com.rbkmoney.woody.api.flow.error.WUndefinedResultException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;

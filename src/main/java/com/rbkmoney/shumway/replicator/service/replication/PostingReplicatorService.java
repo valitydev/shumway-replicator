@@ -1,4 +1,4 @@
-package com.rbkmoney.shumway.replicator.service;
+package com.rbkmoney.shumway.replicator.service.replication;
 
 import com.rbkmoney.damsel.shumpune.*;
 import com.rbkmoney.shumway.replicator.dao.ShumwayDAO;

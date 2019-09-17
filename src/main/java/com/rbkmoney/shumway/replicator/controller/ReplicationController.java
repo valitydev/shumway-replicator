@@ -1,7 +1,7 @@
 package com.rbkmoney.shumway.replicator.controller;
 
 import com.rbkmoney.shumway.replicator.domain.replication.StatusCheckResult;
-import com.rbkmoney.shumway.replicator.service.ReplicatorService;
+import com.rbkmoney.shumway.replicator.service.replication.ReplicatorService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;

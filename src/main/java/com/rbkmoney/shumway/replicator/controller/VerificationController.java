@@ -1,7 +1,7 @@
 package com.rbkmoney.shumway.replicator.controller;
 
 import com.rbkmoney.shumway.replicator.domain.verification.AccountCheckResult;
-import com.rbkmoney.shumway.replicator.service.VerificationService;
+import com.rbkmoney.shumway.replicator.service.verification.VerificationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -22,6 +22,11 @@ public class VerificationController {
     @GetMapping("/status")
     public AccountCheckResult status() {
         return verificationService.status();
+    }
+
+    @GetMapping("/reset")
+    public void reset() {
+        verificationService.reset();
     }
 
 
