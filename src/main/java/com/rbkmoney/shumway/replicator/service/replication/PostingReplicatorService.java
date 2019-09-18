@@ -56,7 +56,7 @@ public class PostingReplicatorService implements Runnable {
                             .collect(Collectors.toList());
                     migratePostingPlansWithRetry(migrationPostingPlans);
 
-                    lastReplicatedPosting.addAndGet(postingLogs.get(postingLogs.size() - 1).getId());
+                    lastReplicatedPosting.set(postingLogs.get(postingLogs.size() - 1).getId());
                 }
             }
         } catch (InterruptedException e) {
