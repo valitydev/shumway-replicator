@@ -31,7 +31,7 @@ public class ShumwayDAO extends JdbcDaoSupport  {
 
     public Long totalAccountsCount() throws DAOException {
         try {
-            return getJdbcTemplate().queryForObject("SELECT COUNT(*) FROM shm.account", Long.class);
+            return getJdbcTemplate().queryForObject("select id from shm.account order by id desc limit 1", Long.class);
         } catch (NestedRuntimeException e) {
             throw new DAOException(e);
         }
@@ -39,7 +39,7 @@ public class ShumwayDAO extends JdbcDaoSupport  {
 
     public Long totalPostingsCount() throws DAOException {
         try {
-            return getJdbcTemplate().queryForObject("SELECT COUNT(*) FROM shm.posting_log", Long.class);
+            return getJdbcTemplate().queryForObject("select id from shm.posting_log order by id desc limit 1", Long.class);
         } catch (NestedRuntimeException e) {
             throw new DAOException(e);
         }
