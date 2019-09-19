@@ -38,33 +38,7 @@ public class BalancesVerificationService implements Runnable {
         totalAccountsCount = shumwayDAO.totalAccountsCount();
         LongStream.range(0, totalAccountsCount)
                 .parallel()
-                .forEach(i -> {
-                    try {
-                        if (!Thread.currentThread().isInterrupted()) {
-                            reset();
-                        }
-                        currentAcc.set(i);
-                        Balance balance = shumpuneClient.getBalanceByID(i, Clock.latest(new LatestClock()));
-                        Account account = shumwayClient.getAccountByID(i);
-                        if (!((balance.getOwnAmount() - balance.getMinAvailableAmount()) + (balance.getOwnAmount() - balance.getMaxAvailableAmount())
-                                == (account.getOwnAmount() - account.getMinAvailableAmount()) + (account.getOwnAmount() - account.getMaxAvailableAmount()))) {
-                            log.warn("Invalid account number: {}\n" +
-                                            "shumpune own -  {} / min - {} / max - {}\n" +
-                                            "shumway own - {} / min - {} / max - {}.", i, balance.getOwnAmount(),
-                                    balance.getMinAvailableAmount(),
-                                    balance.getMaxAvailableAmount(),
-                                    account.getOwnAmount(),
-                                    account.getMinAvailableAmount(),
-                                    account.getMaxAvailableAmount());
-                            invalidAccounts.add(i);
-                        } else {
-                            log.info("Account valid: {}", i);
-                        }
-                    } catch (Throwable t) {
-                        log.error("Verification error, accNum: {}", i, t);
-//                            throw new RuntimeException("Verification error", t);
-                    }
-                });
+                .forEach(this::verify);
         if (invalidAccounts.size() > 0) {
             status = Status.ERROR;
             log.error("Invalid accounts found: " + invalidAccounts);
@@ -72,6 +46,34 @@ public class BalancesVerificationService implements Runnable {
             status = Status.FINISHED;
         }
         log.info("Verification finished");
+    }
+
+    private void verify(long i) {
+        try {
+            if (!Thread.currentThread().isInterrupted()) {
+                reset();
+            }
+            currentAcc.incrementAndGet();
+            Balance balance = shumpuneClient.getBalanceByID(i, Clock.latest(new LatestClock()));
+            Account account = shumwayClient.getAccountByID(i);
+            if (!((balance.getOwnAmount() - balance.getMinAvailableAmount()) + (balance.getOwnAmount() - balance.getMaxAvailableAmount())
+                    == (account.getOwnAmount() - account.getMinAvailableAmount()) + (account.getOwnAmount() - account.getMaxAvailableAmount()))) {
+                log.warn("Invalid account number: {}\n" +
+                                "shumpune own -  {} / min - {} / max - {}\n" +
+                                "shumway own - {} / min - {} / max - {}.", i, balance.getOwnAmount(),
+                        balance.getMinAvailableAmount(),
+                        balance.getMaxAvailableAmount(),
+                        account.getOwnAmount(),
+                        account.getMinAvailableAmount(),
+                        account.getMaxAvailableAmount());
+                invalidAccounts.add(i);
+            } else {
+                log.info("Account valid: {}", i);
+            }
+        } catch (Throwable t) {
+            log.error("Verification error, accNum: {}", i, t);
+//                            throw new RuntimeException("Verification error", t);
+        }
     }
 
     private void reset() {
