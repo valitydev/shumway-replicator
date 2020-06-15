@@ -58,6 +58,11 @@
             <artifactId>common</artifactId>
             <version>0.6.9</version>
         </dependency>
+        <dependency>
+            <groupId>com.rbkmoney</groupId>
+            <artifactId>shumpune-proto</artifactId>
+            <version>1.29-edb6db9</version>
+        </dependency>
         <!--Thirdparty libs-->
         <dependency>
             <groupId>net.logstash.logback</groupId>
@@ -86,7 +91,11 @@
             <artifactId>postgresql</artifactId>
             <version>9.4.1212</version>
         </dependency>
-
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <version>1.18.4</version>
+        </dependency>
 
         <!--Test libs-->
         <dependency>

@@ -1,6 +1,6 @@
 package com.rbkmoney.shumway.replicator;
 
-import com.rbkmoney.damsel.accounter.*;
+import com.rbkmoney.damsel.shumpune.*;
 import com.rbkmoney.shumway.replicator.domain.PostingLog;
 import com.rbkmoney.shumway.replicator.domain.PostingOperation;
 import org.slf4j.Logger;
@@ -8,7 +8,6 @@ import org.slf4j.LoggerFactory;
 
 import java.time.Instant;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicLong;
 
 import static com.rbkmoney.shumway.replicator.Replicator.executeCommand;
 import static com.rbkmoney.shumway.replicator.domain.PostingOperation.HOLD;
@@ -23,12 +22,12 @@ public class PostingReplicator implements Runnable {
     private final Logger log = LoggerFactory.getLogger(this.getClass());
     private final ShumwayDAO dao;
     private final AccounterSrv.Iface client;
-    private final AtomicLong lastAccountReplicatedId;
     private long lastPostingReplicatedId;
     private final int windowSize = 1000;
 
     Map<String, ReplicationPoint> lastPlanPoints = new HashMap<>();
     TreeMap<Long, ReplicationPoint> points = new TreeMap<>();
+    Map<String, Clock> clocks = new HashMap<>();
 
     private static class ReplicationPoint {
         final PostingOperation operation;
@@ -56,10 +55,9 @@ public class PostingReplicator implements Runnable {
         }
     }
 
-    public PostingReplicator(ShumwayDAO dao, AccounterSrv.Iface client, AtomicLong lastAccountReplicatedId, long lastPostingReplicatedId) {
+    public PostingReplicator(ShumwayDAO dao, AccounterSrv.Iface client, long lastPostingReplicatedId) {
         this.dao = dao;
         this.client = client;
-        this.lastAccountReplicatedId = lastAccountReplicatedId;
         this.lastPostingReplicatedId = lastPostingReplicatedId;
     }
 
@@ -108,19 +106,12 @@ public class PostingReplicator implements Runnable {
                         Thread.sleep(STALING_TIME);
                         continue;
                     }
-                    if (!validateAccountCoherence(postingLogs)) {
-                        log.warn("Posting replication is moving faster than accounts one, awaiting on: {}", lastPostingReplicatedId);
-                        Thread.sleep(STALING_TIME);
-                        continue;
-                    }
-
 
                     log.info("Extracted {} new postings [{}, {}]", postingLogs.size(), postingLogs.get(0).getId(), postingLogs.get(postingLogs.size() - 1).getId());
                     for (PostingLog postingLog : postingLogs) {
                         log.debug("Processing log record: {}", postingLog);
-                        ReplicationPoint lastPlanPoint = lastPlanPoints.get(postingLog.getPlanId());// = logPoint(postingLog);
+                        ReplicationPoint lastPlanPoint = lastPlanPoints.get(postingLog.getPlanId());
 
-                        //boolean samePlan = isSamePlan(postingLog, lastPlanId);
                         Optional<ReplicationPoint> optionalLastPoint = Optional.ofNullable(lastPlanPoint);
                         boolean sameBatch = isSameBatch(postingLog, optionalLastPoint.map(p -> p.lastBatchId).orElse(null));
                         if (isSameOperation(postingLog.getOperation(), optionalLastPoint.map(p -> p.operation).orElse(null))) {
@@ -160,7 +151,7 @@ public class PostingReplicator implements Runnable {
     }
 
     private boolean isSameOperation(PostingOperation logOp, PostingOperation pointOp) {
-        return pointOp == null ? true : logOp == pointOp;
+        return pointOp == null || logOp == pointOp;
     }
 
     private int flushToBounds(int windowSize) throws Exception {
@@ -196,17 +187,6 @@ public class PostingReplicator implements Runnable {
         }
     }
 
-    boolean validateAccountCoherence(List<PostingLog> postingLogs) {
-        for (PostingLog postingLog : postingLogs) {
-            long lastAccId = lastAccountReplicatedId.get();
-            if (postingLog.getFromAccountId() > lastAccId || postingLog.getToAccountId() > lastAccId) {
-                log.warn("Posting contains account id more than replicated: {}, {}", lastAccId, postingLog);
-                return false;
-            }
-        }
-        return true;
-    }
-
     boolean validatePostingSequence(List<PostingLog> postingLogs) {
         long border = postingLogs.get(postingLogs.size() - 1).getId();
         long distance = border - lastPostingReplicatedId;
@@ -227,26 +207,37 @@ public class PostingReplicator implements Runnable {
     void processHold(ReplicationPoint point) throws Exception {
         PostingPlanChange postingPlanChange = new PostingPlanChange(point.planId, new PostingBatch(point.lastBatchId, point.batches.get(0).getPostings()));
         log.info("Hold: {}", postingPlanChange);
-        executeCommand(() -> client.hold(postingPlanChange), postingPlanChange, STALING_TIME);
+        final Clock clock = executeCommand(() -> client.hold(postingPlanChange, null), postingPlanChange, STALING_TIME);
+        clocks.put(planAndBatchId(point), clock);
     }
 
     void processCommit(ReplicationPoint point) throws Exception {
         PostingPlan postingPlan = new PostingPlan(point.planId, point.batches);
         log.info("Commit: {}", postingPlan);
-        executeCommand(() -> client.commitPlan(postingPlan), postingPlan, STALING_TIME);
+        final Clock clock = clocks.remove(planAndBatchId(point));
+        executeCommand(() -> client.commitPlan(postingPlan, clock), postingPlan, STALING_TIME);
     }
 
     void processRollback(ReplicationPoint point) throws Exception {
         PostingPlan postingPlan = new PostingPlan(point.planId, point.batches);
         log.info("Rollback: {}", postingPlan);
-        executeCommand(() -> client.rollbackPlan(postingPlan), postingPlan, STALING_TIME);
+        final Clock clock = clocks.remove(planAndBatchId(point));
+        executeCommand(() -> client.rollbackPlan(postingPlan, clock), postingPlan, STALING_TIME);
     }
 
     boolean isSameBatch(PostingLog postingLog, Long lastBatchId) {
-        return lastBatchId == null ? true : lastBatchId.equals(postingLog.getBatchId());
+        return lastBatchId == null || lastBatchId.equals(postingLog.getBatchId());
     }
 
     Posting convertToProto(PostingLog postingLog) {
-        return new Posting(postingLog.getFromAccountId(), postingLog.getToAccountId(), postingLog.getAmount(), postingLog.getCurrSymCode(), postingLog.getDescription());
+        return new Posting(new Account(postingLog.getFromAccountId() + "", postingLog.getCurrSymCode()),
+                new Account(postingLog.getToAccountId() + "", postingLog.getCurrSymCode()),
+                postingLog.getAmount(),
+                postingLog.getCurrSymCode(),
+                postingLog.getDescription());
+    }
+
+    private String planAndBatchId(ReplicationPoint point) {
+        return String.format("%s_%d", point.planId, point.lastBatchId);
     }
 }

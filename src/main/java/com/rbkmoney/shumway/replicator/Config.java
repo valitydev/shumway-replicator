@@ -1,6 +1,7 @@
 package com.rbkmoney.shumway.replicator;
 
-import com.rbkmoney.damsel.accounter.AccounterSrv;
+
+import com.rbkmoney.damsel.shumpune.AccounterSrv;
 import com.rbkmoney.woody.thrift.impl.http.THSpawnClientBuilder;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -17,7 +18,7 @@ import java.net.URISyntaxException;
 public class Config {
 
     @Bean
-    public AccounterSrv.Iface shumwayClient(@Value("${shm.target.uri}") String uri) throws URISyntaxException {
+    public AccounterSrv.Iface shumwayClient(@Value("${shumaich.target.uri}") String uri) throws URISyntaxException {
         return new THSpawnClientBuilder().withAddress(new URI(uri)).withNetworkTimeout(5000).build(AccounterSrv.Iface.class);
     }
 

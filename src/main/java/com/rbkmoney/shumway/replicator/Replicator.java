@@ -1,6 +1,6 @@
 package com.rbkmoney.shumway.replicator;
 
-import com.rbkmoney.damsel.accounter.*;
+import com.rbkmoney.damsel.shumpune.AccounterSrv;
 import com.rbkmoney.woody.api.flow.error.WUnavailableResultException;
 import com.rbkmoney.woody.api.flow.error.WUndefinedResultException;
 import org.slf4j.Logger;
@@ -19,14 +19,11 @@ public class Replicator {
     private static final Logger log = LoggerFactory.getLogger(Replicator.class);
     static final long SEQ_CHECK_STALING = 1000 * 60 * 5;
 
-    private final AtomicLong lastReplicatedAccount = new AtomicLong(0);
-    private final Thread accountReplicator;
     private final Thread postingReplicator;
 
     @Autowired
     public Replicator(ShumwayDAO dao, AccounterSrv.Iface client) {
-        this.accountReplicator = new Thread(new AccountReplicator(dao, client, lastReplicatedAccount), "AccountReplicator");
-        this.postingReplicator = new Thread(new PostingReplicator(dao, client, lastReplicatedAccount, 0), "PostingReplicator");
+        this.postingReplicator = new Thread(new PostingReplicator(dao, client, 0), "PostingReplicator");
     }
 
     @PostConstruct
@@ -34,7 +31,6 @@ public class Replicator {
         new Thread(() -> {
             log.info("Start replicator");
             try {
-                accountReplicator.start();
                 postingReplicator.start();
             } catch (Throwable t) {
                 log.error("Replicator error", t);
@@ -48,7 +44,6 @@ public class Replicator {
     @PreDestroy
     public void destroy() {
         postingReplicator.interrupt();
-        accountReplicator.interrupt();
     }
 
     protected static  <T> T executeCommand(Callable<T> command, Object data, long stalingTime) throws Exception {
@@ -58,11 +53,9 @@ public class Replicator {
             } catch (WUndefinedResultException | WUnavailableResultException e) {
                 log.warn("Temporary command error, retry", e);
                 Thread.sleep(stalingTime);
-                continue;
             } catch (Exception e) {
                 log.error("Failed to execute command with data: {}, retry", data);
                 Thread.sleep(stalingTime);
-                continue;
             }
         }
     }
