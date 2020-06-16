@@ -1,29 +1,41 @@
-package com.rbkmoney.shumway.replicator;
+package com.rbkmoney.shumway.replicator.service.replication;
 
 import com.rbkmoney.damsel.shumpune.*;
+import com.rbkmoney.shumway.replicator.dao.ShumwayDAO;
 import com.rbkmoney.shumway.replicator.domain.PostingLog;
 import com.rbkmoney.shumway.replicator.domain.PostingOperation;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
 
 import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicLong;
 
-import static com.rbkmoney.shumway.replicator.Replicator.executeCommand;
 import static com.rbkmoney.shumway.replicator.domain.PostingOperation.HOLD;
+import static com.rbkmoney.shumway.replicator.service.replication.ReplicatorService.executeCommand;
 
-/**
- * Created by vpankrashkin on 19.06.18.
- */
-public class PostingReplicator implements Runnable {
+@Slf4j
+@Component
+@RequiredArgsConstructor
+public class PostingReplicatorThread implements Runnable {
 
-    private static final int BATCH_SIZE = 1500;
-    private static final int STALING_TIME = 5000;
-    private final Logger log = LoggerFactory.getLogger(this.getClass());
+    @Value("${replicator.batch.size:2500}")
+    private Integer batchSize;
+
+    @Value("${replicator.backoff.time.remote.ms:200}")
+    private Integer remoteBackoffTime;
+
+    @Value("${replicator.backoff.time.changes.ms:2000}")
+    private Integer changesBackoffTime;
+
+
+    private int windowSize = 1000;
+
     private final ShumwayDAO dao;
     private final AccounterSrv.Iface client;
-    private long lastPostingReplicatedId;
-    private final int windowSize = 1000;
+    private final AtomicLong lastPostingReplicatedId;
 
     Map<String, ReplicationPoint> lastPlanPoints = new HashMap<>();
     TreeMap<Long, ReplicationPoint> points = new TreeMap<>();
@@ -55,12 +67,6 @@ public class PostingReplicator implements Runnable {
         }
     }
 
-    public PostingReplicator(ShumwayDAO dao, AccounterSrv.Iface client, long lastPostingReplicatedId) {
-        this.dao = dao;
-        this.client = client;
-        this.lastPostingReplicatedId = lastPostingReplicatedId;
-    }
-
     private ReplicationPoint nextLogPoint(PostingLog postingLog) {
         lastPlanPoints.remove(postingLog.getPlanId());
         return logPoint(postingLog);
@@ -89,13 +95,13 @@ public class PostingReplicator implements Runnable {
 
             while (!Thread.currentThread().isInterrupted()) {
                 log.info("Get postings from id: {}", lastPostingReplicatedId);
-                List<PostingLog> postingLogs = executeCommand(() -> dao.getPostingLogs(lastPostingReplicatedId, BATCH_SIZE), lastPostingReplicatedId, STALING_TIME);
+                List<PostingLog> postingLogs = executeCommand(() -> dao.getPostingLogs(lastPostingReplicatedId.get(), batchSize), lastPostingReplicatedId, remoteBackoffTime);
                 if (postingLogs.isEmpty()) {
                     if (prevNoData && !lastPlanPoints.isEmpty()) {
                         flushToBounds(0);
                     }
                     log.info("Awaiting new postings on: {}", lastPostingReplicatedId);
-                    Thread.sleep(STALING_TIME);
+                    Thread.sleep(changesBackoffTime);
 
                     if (!prevNoData) {
                         prevNoData = true;
@@ -103,7 +109,7 @@ public class PostingReplicator implements Runnable {
                 } else {
                     if (!validatePostingSequence(postingLogs)) {
                         log.warn("Sequence not validated, awaiting for continuous range on: {}", lastPostingReplicatedId);
-                        Thread.sleep(STALING_TIME);
+                        Thread.sleep(changesBackoffTime);
                         continue;
                     }
 
@@ -132,7 +138,7 @@ public class PostingReplicator implements Runnable {
                         prevNoData = false;
                         lastPlanPoint.postings.add(convertToProto(postingLog));
                         lastPlanPoint.lastBatchId = postingLog.getBatchId();
-                        lastPostingReplicatedId = postingLog.getId();
+                        lastPostingReplicatedId.set(postingLog.getId());
                     }
                     int flushed = flushToBounds(windowSize);
                     if (flushed > 0) {
@@ -189,11 +195,11 @@ public class PostingReplicator implements Runnable {
 
     boolean validatePostingSequence(List<PostingLog> postingLogs) {
         long border = postingLogs.get(postingLogs.size() - 1).getId();
-        long distance = border - lastPostingReplicatedId;
+        long distance = border - lastPostingReplicatedId.get();
         if (distance != postingLogs.size()) {
             log.warn("Gaps in posting sequence range: [{}, {}], distance: {}", lastPostingReplicatedId, border, distance);
             Instant lastCreationTime = postingLogs.get(postingLogs.size() - 1).getCreationTime();
-            if (lastCreationTime.plusMillis(Replicator.SEQ_CHECK_STALING).isBefore(Instant.now())) {
+            if (lastCreationTime.plusMillis(ReplicatorService.SEQ_CHECK_STALING).isBefore(Instant.now())) {
                 log.warn("Last time in log pack:{} is old enough, seq check staled [continue]", lastCreationTime);
                 return true;
             } else {
@@ -207,7 +213,7 @@ public class PostingReplicator implements Runnable {
     void processHold(ReplicationPoint point) throws Exception {
         PostingPlanChange postingPlanChange = new PostingPlanChange(point.planId, new PostingBatch(point.lastBatchId, point.batches.get(0).getPostings()));
         log.info("Hold: {}", postingPlanChange);
-        final Clock clock = executeCommand(() -> client.hold(postingPlanChange, null), postingPlanChange, STALING_TIME);
+        final Clock clock = executeCommand(() -> client.hold(postingPlanChange, null), postingPlanChange, remoteBackoffTime);
         clocks.put(planAndBatchId(point), clock);
     }
 
@@ -215,14 +221,14 @@ public class PostingReplicator implements Runnable {
         PostingPlan postingPlan = new PostingPlan(point.planId, point.batches);
         log.info("Commit: {}", postingPlan);
         final Clock clock = clocks.remove(planAndBatchId(point));
-        executeCommand(() -> client.commitPlan(postingPlan, clock), postingPlan, STALING_TIME);
+        executeCommand(() -> client.commitPlan(postingPlan, clock), postingPlan, remoteBackoffTime);
     }
 
     void processRollback(ReplicationPoint point) throws Exception {
         PostingPlan postingPlan = new PostingPlan(point.planId, point.batches);
         log.info("Rollback: {}", postingPlan);
         final Clock clock = clocks.remove(planAndBatchId(point));
-        executeCommand(() -> client.rollbackPlan(postingPlan, clock), postingPlan, STALING_TIME);
+        executeCommand(() -> client.rollbackPlan(postingPlan, clock), postingPlan, remoteBackoffTime);
     }
 
     boolean isSameBatch(PostingLog postingLog, Long lastBatchId) {
