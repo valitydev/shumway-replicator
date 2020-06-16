@@ -18,7 +18,7 @@ import java.util.concurrent.atomic.AtomicLong;
 @Service
 @RequiredArgsConstructor
 public class ReplicatorService {
-    static final long SEQ_CHECK_STALING = 1000 * 60 * 5;
+    static final long SEQ_CHECK_STALING = 1000 * 60 * 5L;
     private Thread postingReplicator;
 
     private final PostingReplicatorThread postingReplicatorThread;

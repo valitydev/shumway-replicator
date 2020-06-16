@@ -148,6 +148,7 @@ public class PostingReplicatorThread implements Runnable {
             }
         } catch (InterruptedException e) {
             log.warn("Posting replicator interrupted");
+            Thread.currentThread().interrupt();
         } catch (Throwable t) {
             log.error("Posting replicator error", t);
             throw new RuntimeException("Posting replicator error", t);
