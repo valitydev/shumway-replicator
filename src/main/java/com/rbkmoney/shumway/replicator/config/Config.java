@@ -6,8 +6,11 @@ import com.rbkmoney.shumway.replicator.dao.ShumwayDAO;
 import com.rbkmoney.shumway.replicator.service.ProgressService;
 import com.rbkmoney.woody.thrift.impl.http.THSpawnClientBuilder;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.jdbc.DataSourceBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 
 import javax.sql.DataSource;
 import java.net.URI;
@@ -28,8 +31,21 @@ public class Config {
     }
 
     @Bean
-    public ShumwayDAO dao(DataSource ds) {
-        return new ShumwayDAO(ds);
+    @Primary
+    @ConfigurationProperties(prefix="spring.datasource-first")
+    public DataSource primaryDataSource() {
+        return DataSourceBuilder.create().build();
+    }
+
+    @Bean
+    @ConfigurationProperties(prefix="spring.datasource-second")
+    public DataSource shumwayDataSource() {
+        return DataSourceBuilder.create().build();
+    }
+
+    @Bean
+    public ShumwayDAO dao(DataSource shumwayDataSource) {
+        return new ShumwayDAO(shumwayDataSource);
     }
 
     @Bean
