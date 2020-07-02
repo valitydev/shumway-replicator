@@ -71,7 +71,6 @@ public class BalancesVerificationService implements Runnable {
             }
         } catch (Throwable t) { //NOSONAR
             log.error("Verification error, accNum: {}", i, t);
-//                            throw new RuntimeException("Verification error", t);
         }
     }
 

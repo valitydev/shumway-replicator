@@ -4,6 +4,7 @@ import com.rbkmoney.damsel.shumpune.*;
 import com.rbkmoney.shumway.replicator.dao.ShumwayDAO;
 import com.rbkmoney.shumway.replicator.domain.PostingLog;
 import com.rbkmoney.shumway.replicator.domain.PostingOperation;
+import com.rbkmoney.shumway.replicator.service.ProgressService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -36,6 +37,7 @@ public class PostingReplicatorThread implements Runnable {
     private final ShumwayDAO dao;
     private final AccounterSrv.Iface client;
     private final AtomicLong lastPostingReplicatedId;
+    private final ProgressService progressService;
 
     Map<String, ReplicationPoint> lastPlanPoints = new HashMap<>();
     TreeMap<Long, ReplicationPoint> points = new TreeMap<>();
@@ -139,6 +141,7 @@ public class PostingReplicatorThread implements Runnable {
                         lastPlanPoint.postings.add(convertToProto(postingLog));
                         lastPlanPoint.lastBatchId = postingLog.getBatchId();
                         lastPostingReplicatedId.set(postingLog.getId());
+                        progressService.saveProgess(lastPostingReplicatedId.get());
                     }
                     int flushed = flushToBounds(windowSize);
                     if (flushed > 0) {

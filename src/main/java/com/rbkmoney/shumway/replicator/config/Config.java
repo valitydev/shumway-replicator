@@ -3,6 +3,7 @@ package com.rbkmoney.shumway.replicator.config;
 
 import com.rbkmoney.damsel.shumpune.AccounterSrv;
 import com.rbkmoney.shumway.replicator.dao.ShumwayDAO;
+import com.rbkmoney.shumway.replicator.service.ProgressService;
 import com.rbkmoney.woody.thrift.impl.http.THSpawnClientBuilder;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -32,8 +33,8 @@ public class Config {
     }
 
     @Bean
-    public AtomicLong lastReplicatedPosting() {
-        return new AtomicLong(0);
+    public AtomicLong lastReplicatedPosting(ProgressService progressService) {
+        return new AtomicLong(progressService.getProgress().getLatestPosting());
     }
 
 }
