@@ -7,7 +7,7 @@
     <parent>
         <groupId>com.rbkmoney</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>2.0.1.RELEASE</version>
+        <version>2.2.6.RELEASE</version>
     </parent>
 
     <artifactId>shumway-replicator</artifactId>
@@ -26,10 +26,6 @@
     </properties>
 
     <dependencies>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-data-jpa</artifactId>
-        </dependency>
         <!--RBK libs-->
         <dependency>
             <groupId>com.rbkmoney.woody</groupId>
@@ -92,7 +88,7 @@
         <dependency>
             <groupId>org.flywaydb</groupId>
             <artifactId>flyway-core</artifactId>
-            <version>5.2.3</version>
+            <version>6.5.0</version>
         </dependency>
         <dependency>
             <groupId>net.logstash.logback</groupId>

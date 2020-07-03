@@ -9,3 +9,5 @@ CREATE TABLE shmr.progress
 WITH (
 OIDS=FALSE
 );
+
+INSERT INTO shmr.progress VALUES ('posting_id', 0);

@@ -2,14 +2,17 @@ package com.rbkmoney.shumway.replicator.config;
 
 
 import com.rbkmoney.damsel.shumpune.AccounterSrv;
+import com.rbkmoney.shumway.replicator.dao.ProgressDAO;
 import com.rbkmoney.shumway.replicator.dao.ShumwayDAO;
-import com.rbkmoney.shumway.replicator.service.ProgressService;
 import com.rbkmoney.woody.thrift.impl.http.THSpawnClientBuilder;
+import com.zaxxer.hikari.HikariDataSource;
+import org.flywaydb.core.Flyway;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.jdbc.DataSourceProperties;
 import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.boot.jdbc.DataSourceBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.DependsOn;
 import org.springframework.context.annotation.Primary;
 
 import javax.sql.DataSource;
@@ -32,25 +35,53 @@ public class Config {
 
     @Bean
     @Primary
-    @ConfigurationProperties(prefix="spring.datasource-first")
-    public DataSource primaryDataSource() {
-        return DataSourceBuilder.create().build();
+    @ConfigurationProperties("datasource-first")
+    public DataSourceProperties dataSourceProperties() {
+        return new DataSourceProperties();
     }
 
     @Bean
-    @ConfigurationProperties(prefix="spring.datasource-second")
-    public DataSource shumwayDataSource() {
-        return DataSourceBuilder.create().build();
+    @Primary
+    @ConfigurationProperties("datasource-first.hikari")
+    public HikariDataSource dataSource(DataSourceProperties dataSourceProperties) {
+        return dataSourceProperties.initializeDataSourceBuilder()
+                .type(HikariDataSource.class).build();
     }
 
     @Bean
-    public ShumwayDAO dao(DataSource shumwayDataSource) {
+    @ConfigurationProperties("datasource-second")
+    public DataSourceProperties shumwayDataSourceProperties() {
+        return new DataSourceProperties();
+    }
+
+    @Bean
+    @ConfigurationProperties("datasource-second.hikari")
+    public HikariDataSource shumwayDataSource(DataSourceProperties shumwayDataSourceProperties) {
+        return shumwayDataSourceProperties.initializeDataSourceBuilder()
+                .type(HikariDataSource.class).build();
+    }
+
+    @Bean
+    public ShumwayDAO shumwayDAO(DataSource shumwayDataSource) {
         return new ShumwayDAO(shumwayDataSource);
     }
 
     @Bean
-    public AtomicLong lastReplicatedPosting(ProgressService progressService) {
-        return new AtomicLong(progressService.getProgress().getLatestPosting());
+    public ProgressDAO progressDAO(DataSource dataSource) {
+        return new ProgressDAO(dataSource);
+    }
+
+    @Bean
+    public Flyway flyway(DataSource dataSource) {
+        final Flyway flyway = Flyway.configure().dataSource(dataSource).load();
+        flyway.migrate();
+        return flyway;
+    }
+
+    @Bean
+    @DependsOn("flyway")
+    public AtomicLong lastReplicatedPosting(ProgressDAO progressDAO) {
+        return new AtomicLong(progressDAO.getProgress());
     }
 
 }

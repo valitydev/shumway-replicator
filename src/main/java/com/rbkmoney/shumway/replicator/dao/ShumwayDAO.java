@@ -5,15 +5,12 @@ import com.rbkmoney.shumway.replicator.dao.mapper.PostingLogMapper;
 import com.rbkmoney.shumway.replicator.domain.Account;
 import com.rbkmoney.shumway.replicator.domain.PostingLog;
 import com.rbkmoney.shumway.replicator.exception.DAOException;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.NestedRuntimeException;
 import org.springframework.jdbc.core.support.JdbcDaoSupport;
-import org.springframework.stereotype.Component;
 
 import javax.sql.DataSource;
 import java.util.List;
 
-@Component
 public class ShumwayDAO extends JdbcDaoSupport  {
     private static final String sqlAcc = "SELECT id, curr_sym_code, creation_time, description FROM shm.account WHERE id > ? order by id limit ?";
     private static final String sqlPst = "select id, plan_id, batch_id, from_account_id, to_account_id, creation_time, amount, curr_sym_code, operation, description from shm.posting_log where id > ? order by id limit ?";
@@ -21,7 +18,6 @@ public class ShumwayDAO extends JdbcDaoSupport  {
     private final AccountMapper accountMapper = new AccountMapper();
     private final PostingLogMapper postingLogMapper = new PostingLogMapper();
 
-    @Autowired
     public ShumwayDAO(DataSource shumwayDS) {
         setDataSource(shumwayDS);
     }
