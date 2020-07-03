@@ -1,6 +1,6 @@
 create schema if not exists shmr;
 
-CREATE TABLE shmr.progress
+CREATE TABLE if not exists shmr.progress
 (
   id varchar(20) NOT NULL,
   latest_posting bigint NOT NULL,
