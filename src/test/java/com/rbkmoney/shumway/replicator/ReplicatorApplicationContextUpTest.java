@@ -45,10 +45,7 @@ public class ReplicatorApplicationContextUpTest {
                             "datasource-first.password=" + postgres1.getPassword(),
                             "datasource-second.url=" + postgres2.getJdbcUrl(),
                             "datasource-second.username=" + postgres2.getUsername(),
-                            "datasource-second.password=" + postgres2.getPassword(),
-                            "spring.flyway.url=" + postgres1.getJdbcUrl(),
-                            "spring.flyway.user=" + postgres1.getUsername(),
-                            "spring.flyway.password=" + postgres1.getPassword())
+                            "datasource-second.password=" + postgres2.getPassword())
                     .applyTo(configurableApplicationContext.getEnvironment());
         }
     }
