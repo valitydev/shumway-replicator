@@ -1,7 +1,7 @@
 package com.rbkmoney.shumway.replicator.config;
 
 
-import com.rbkmoney.damsel.shumpune.AccounterSrv;
+import com.rbkmoney.damsel.shumaich.AccounterSrv;
 import com.rbkmoney.shumway.replicator.dao.ProgressDAO;
 import com.rbkmoney.shumway.replicator.dao.ShumwayDAO;
 import com.rbkmoney.woody.thrift.impl.http.THSpawnClientBuilder;
