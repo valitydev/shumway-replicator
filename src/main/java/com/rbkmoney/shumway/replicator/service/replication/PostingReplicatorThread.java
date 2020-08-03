@@ -1,6 +1,6 @@
 package com.rbkmoney.shumway.replicator.service.replication;
 
-import com.rbkmoney.damsel.shumpune.*;
+import com.rbkmoney.damsel.shumaich.*;
 import com.rbkmoney.shumway.replicator.dao.ProgressDAO;
 import com.rbkmoney.shumway.replicator.dao.ShumwayDAO;
 import com.rbkmoney.shumway.replicator.domain.PostingLog;
@@ -240,8 +240,8 @@ public class PostingReplicatorThread implements Runnable {
     }
 
     Posting convertToProto(PostingLog postingLog) {
-        return new Posting(new Account(postingLog.getFromAccountId() + "", postingLog.getCurrSymCode()),
-                new Account(postingLog.getToAccountId() + "", postingLog.getCurrSymCode()),
+        return new Posting(new Account(postingLog.getFromAccountId(), postingLog.getCurrSymCode()),
+                new Account(postingLog.getToAccountId(), postingLog.getCurrSymCode()),
                 postingLog.getAmount(),
                 postingLog.getCurrSymCode(),
                 postingLog.getDescription());

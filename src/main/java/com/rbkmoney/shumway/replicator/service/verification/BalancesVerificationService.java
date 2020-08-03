@@ -2,9 +2,9 @@ package com.rbkmoney.shumway.replicator.service.verification;
 
 import com.rbkmoney.damsel.accounter.Account;
 import com.rbkmoney.damsel.accounter.AccounterSrv;
-import com.rbkmoney.damsel.shumpune.Balance;
-import com.rbkmoney.damsel.shumpune.Clock;
-import com.rbkmoney.damsel.shumpune.LatestClock;
+import com.rbkmoney.damsel.shumaich.Balance;
+import com.rbkmoney.damsel.shumaich.Clock;
+import com.rbkmoney.damsel.shumaich.LatestClock;
 import com.rbkmoney.shumway.replicator.dao.ShumwayDAO;
 import com.rbkmoney.shumway.replicator.domain.replication.Status;
 import com.rbkmoney.shumway.replicator.domain.verification.AccountCheckResult;
@@ -22,7 +22,7 @@ import java.util.stream.LongStream;
 @RequiredArgsConstructor
 public class BalancesVerificationService implements Runnable {
 
-    private final com.rbkmoney.damsel.shumpune.AccounterSrv.Iface shumaichClient;
+    private final com.rbkmoney.damsel.shumaich.AccounterSrv.Iface shumaichClient;
     private final AccounterSrv.Iface shumwayClient;
     private final ShumwayDAO shumwayDAO;
 
@@ -54,7 +54,7 @@ public class BalancesVerificationService implements Runnable {
                 reset();
             }
             currentAcc.incrementAndGet();
-            Balance balance = shumaichClient.getBalanceByID(i + "", Clock.latest(new LatestClock()));
+            Balance balance = shumaichClient.getBalanceByID(i, Clock.latest(new LatestClock()));
             Account account = shumwayClient.getAccountByID(i);
             if (balancesEqual(balance, account)) {
                 log.info("Account valid: {}", i);

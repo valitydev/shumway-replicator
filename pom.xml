@@ -66,8 +66,8 @@
         </dependency>
         <dependency>
             <groupId>com.rbkmoney</groupId>
-            <artifactId>shumpune-proto</artifactId>
-            <version>1.29-edb6db9</version>
+            <artifactId>shumaich-proto</artifactId>
+            <version>1.40-be2c835</version>
         </dependency>
         <dependency>
             <groupId>com.rbkmoney.geck</groupId>
