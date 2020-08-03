@@ -1,34 +1,47 @@
-package com.rbkmoney.shumway.replicator;
+package com.rbkmoney.shumway.replicator.service.replication;
 
-import com.rbkmoney.damsel.accounter.*;
+import com.rbkmoney.damsel.shumpune.*;
+import com.rbkmoney.shumway.replicator.dao.ProgressDAO;
+import com.rbkmoney.shumway.replicator.dao.ShumwayDAO;
 import com.rbkmoney.shumway.replicator.domain.PostingLog;
 import com.rbkmoney.shumway.replicator.domain.PostingOperation;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
 
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static com.rbkmoney.shumway.replicator.Replicator.executeCommand;
 import static com.rbkmoney.shumway.replicator.domain.PostingOperation.HOLD;
+import static com.rbkmoney.shumway.replicator.service.replication.ReplicatorService.executeCommand;
 
-/**
- * Created by vpankrashkin on 19.06.18.
- */
-public class PostingReplicator implements Runnable {
+@Slf4j
+@Component
+@RequiredArgsConstructor
+public class PostingReplicatorThread implements Runnable {
 
-    private static final int BATCH_SIZE = 1500;
-    private static final int STALING_TIME = 5000;
-    private final Logger log = LoggerFactory.getLogger(this.getClass());
+    @Value("${replicator.batch.size:2500}")
+    private Integer batchSize;
+
+    @Value("${replicator.backoff.time.remote.ms:200}")
+    private Integer remoteBackoffTime;
+
+    @Value("${replicator.backoff.time.changes.ms:2000}")
+    private Integer changesBackoffTime;
+
+
+    private int windowSize = 1000;
+
     private final ShumwayDAO dao;
     private final AccounterSrv.Iface client;
-    private final AtomicLong lastAccountReplicatedId;
-    private long lastPostingReplicatedId;
-    private final int windowSize = 1000;
+    private final AtomicLong lastPostingReplicatedId;
+    private final ProgressDAO progressDAO;
 
     Map<String, ReplicationPoint> lastPlanPoints = new HashMap<>();
     TreeMap<Long, ReplicationPoint> points = new TreeMap<>();
+    Map<String, Clock> clocks = new HashMap<>();
 
     private static class ReplicationPoint {
         final PostingOperation operation;
@@ -54,13 +67,6 @@ public class PostingReplicator implements Runnable {
                     ", batches=" + batches +
                     '}';
         }
-    }
-
-    public PostingReplicator(ShumwayDAO dao, AccounterSrv.Iface client, AtomicLong lastAccountReplicatedId, long lastPostingReplicatedId) {
-        this.dao = dao;
-        this.client = client;
-        this.lastAccountReplicatedId = lastAccountReplicatedId;
-        this.lastPostingReplicatedId = lastPostingReplicatedId;
     }
 
     private ReplicationPoint nextLogPoint(PostingLog postingLog) {
@@ -91,13 +97,13 @@ public class PostingReplicator implements Runnable {
 
             while (!Thread.currentThread().isInterrupted()) {
                 log.info("Get postings from id: {}", lastPostingReplicatedId);
-                List<PostingLog> postingLogs = executeCommand(() -> dao.getPostingLogs(lastPostingReplicatedId, BATCH_SIZE), lastPostingReplicatedId, STALING_TIME);
+                List<PostingLog> postingLogs = executeCommand(() -> dao.getPostingLogs(lastPostingReplicatedId.get(), batchSize), lastPostingReplicatedId, remoteBackoffTime);
                 if (postingLogs.isEmpty()) {
                     if (prevNoData && !lastPlanPoints.isEmpty()) {
                         flushToBounds(0);
                     }
                     log.info("Awaiting new postings on: {}", lastPostingReplicatedId);
-                    Thread.sleep(STALING_TIME);
+                    Thread.sleep(changesBackoffTime);
 
                     if (!prevNoData) {
                         prevNoData = true;
@@ -105,22 +111,15 @@ public class PostingReplicator implements Runnable {
                 } else {
                     if (!validatePostingSequence(postingLogs)) {
                         log.warn("Sequence not validated, awaiting for continuous range on: {}", lastPostingReplicatedId);
-                        Thread.sleep(STALING_TIME);
+                        Thread.sleep(changesBackoffTime);
                         continue;
                     }
-                    if (!validateAccountCoherence(postingLogs)) {
-                        log.warn("Posting replication is moving faster than accounts one, awaiting on: {}", lastPostingReplicatedId);
-                        Thread.sleep(STALING_TIME);
-                        continue;
-                    }
-
 
                     log.info("Extracted {} new postings [{}, {}]", postingLogs.size(), postingLogs.get(0).getId(), postingLogs.get(postingLogs.size() - 1).getId());
                     for (PostingLog postingLog : postingLogs) {
                         log.debug("Processing log record: {}", postingLog);
-                        ReplicationPoint lastPlanPoint = lastPlanPoints.get(postingLog.getPlanId());// = logPoint(postingLog);
+                        ReplicationPoint lastPlanPoint = lastPlanPoints.get(postingLog.getPlanId());
 
-                        //boolean samePlan = isSamePlan(postingLog, lastPlanId);
                         Optional<ReplicationPoint> optionalLastPoint = Optional.ofNullable(lastPlanPoint);
                         boolean sameBatch = isSameBatch(postingLog, optionalLastPoint.map(p -> p.lastBatchId).orElse(null));
                         if (isSameOperation(postingLog.getOperation(), optionalLastPoint.map(p -> p.operation).orElse(null))) {
@@ -141,7 +140,8 @@ public class PostingReplicator implements Runnable {
                         prevNoData = false;
                         lastPlanPoint.postings.add(convertToProto(postingLog));
                         lastPlanPoint.lastBatchId = postingLog.getBatchId();
-                        lastPostingReplicatedId = postingLog.getId();
+                        lastPostingReplicatedId.set(postingLog.getId());
+                        progressDAO.saveProgess(lastPostingReplicatedId.get());
                     }
                     int flushed = flushToBounds(windowSize);
                     if (flushed > 0) {
@@ -151,6 +151,7 @@ public class PostingReplicator implements Runnable {
             }
         } catch (InterruptedException e) {
             log.warn("Posting replicator interrupted");
+            Thread.currentThread().interrupt();
         } catch (Throwable t) {
             log.error("Posting replicator error", t);
             throw new RuntimeException("Posting replicator error", t);
@@ -160,7 +161,7 @@ public class PostingReplicator implements Runnable {
     }
 
     private boolean isSameOperation(PostingOperation logOp, PostingOperation pointOp) {
-        return pointOp == null ? true : logOp == pointOp;
+        return pointOp == null || logOp == pointOp;
     }
 
     private int flushToBounds(int windowSize) throws Exception {
@@ -196,24 +197,13 @@ public class PostingReplicator implements Runnable {
         }
     }
 
-    boolean validateAccountCoherence(List<PostingLog> postingLogs) {
-        for (PostingLog postingLog : postingLogs) {
-            long lastAccId = lastAccountReplicatedId.get();
-            if (postingLog.getFromAccountId() > lastAccId || postingLog.getToAccountId() > lastAccId) {
-                log.warn("Posting contains account id more than replicated: {}, {}", lastAccId, postingLog);
-                return false;
-            }
-        }
-        return true;
-    }
-
     boolean validatePostingSequence(List<PostingLog> postingLogs) {
         long border = postingLogs.get(postingLogs.size() - 1).getId();
-        long distance = border - lastPostingReplicatedId;
+        long distance = border - lastPostingReplicatedId.get();
         if (distance != postingLogs.size()) {
             log.warn("Gaps in posting sequence range: [{}, {}], distance: {}", lastPostingReplicatedId, border, distance);
             Instant lastCreationTime = postingLogs.get(postingLogs.size() - 1).getCreationTime();
-            if (lastCreationTime.plusMillis(Replicator.SEQ_CHECK_STALING).isBefore(Instant.now())) {
+            if (lastCreationTime.plusMillis(ReplicatorService.SEQ_CHECK_STALING).isBefore(Instant.now())) {
                 log.warn("Last time in log pack:{} is old enough, seq check staled [continue]", lastCreationTime);
                 return true;
             } else {
@@ -227,26 +217,37 @@ public class PostingReplicator implements Runnable {
     void processHold(ReplicationPoint point) throws Exception {
         PostingPlanChange postingPlanChange = new PostingPlanChange(point.planId, new PostingBatch(point.lastBatchId, point.batches.get(0).getPostings()));
         log.info("Hold: {}", postingPlanChange);
-        executeCommand(() -> client.hold(postingPlanChange), postingPlanChange, STALING_TIME);
+        final Clock clock = executeCommand(() -> client.hold(postingPlanChange, null), postingPlanChange, remoteBackoffTime);
+        clocks.put(planAndBatchId(point), clock);
     }
 
     void processCommit(ReplicationPoint point) throws Exception {
         PostingPlan postingPlan = new PostingPlan(point.planId, point.batches);
         log.info("Commit: {}", postingPlan);
-        executeCommand(() -> client.commitPlan(postingPlan), postingPlan, STALING_TIME);
+        final Clock clock = clocks.remove(planAndBatchId(point));
+        executeCommand(() -> client.commitPlan(postingPlan, clock), postingPlan, remoteBackoffTime);
     }
 
     void processRollback(ReplicationPoint point) throws Exception {
         PostingPlan postingPlan = new PostingPlan(point.planId, point.batches);
         log.info("Rollback: {}", postingPlan);
-        executeCommand(() -> client.rollbackPlan(postingPlan), postingPlan, STALING_TIME);
+        final Clock clock = clocks.remove(planAndBatchId(point));
+        executeCommand(() -> client.rollbackPlan(postingPlan, clock), postingPlan, remoteBackoffTime);
     }
 
     boolean isSameBatch(PostingLog postingLog, Long lastBatchId) {
-        return lastBatchId == null ? true : lastBatchId.equals(postingLog.getBatchId());
+        return lastBatchId == null || lastBatchId.equals(postingLog.getBatchId());
     }
 
     Posting convertToProto(PostingLog postingLog) {
-        return new Posting(postingLog.getFromAccountId(), postingLog.getToAccountId(), postingLog.getAmount(), postingLog.getCurrSymCode(), postingLog.getDescription());
+        return new Posting(new Account(postingLog.getFromAccountId() + "", postingLog.getCurrSymCode()),
+                new Account(postingLog.getToAccountId() + "", postingLog.getCurrSymCode()),
+                postingLog.getAmount(),
+                postingLog.getCurrSymCode(),
+                postingLog.getDescription());
+    }
+
+    private String planAndBatchId(ReplicationPoint point) {
+        return String.format("%s_%d", point.planId, point.lastBatchId);
     }
 }
